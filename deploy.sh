@@ -397,7 +397,7 @@ trap - INT TERM
 # artifacts. Refuse to install an artifact without a matching checksum: a
 # successful HTTP transfer alone is not provenance.
 checksum_tmp="$(mktemp)"
-trap 'rm -f "$checksum_tmp"' EXIT
+trap 'rm -f "$checksum_tmp"; dl_cleanup' EXIT
 fetch_checksum() {
     if [[ "$DL" == "curl" ]]; then
         curl -fsSL --retry 3 --max-time 30 "https://github.com/$REPO/releases/latest/download/SHA256SUMS" -o "$checksum_tmp"

@@ -16,3 +16,8 @@
 - Wired history recording into the existing account billing transaction.
 - Added status summary semantics to the account list response.
 - Added focused retention, negative-delta, and range tests.
+- Added fixed-value Linux BBR detection, safe enable/revert ownership, dashboard
+  status/control, fresh-install defaults, upgrade preservation, and opt-out flags.
+- Added checksum-enforced amd64/arm64 release CI and `install.sh` fork entrypoint.
+- GitHub publication remains blocked: `gh`, GitHub credentials, and network access
+  to github.com are unavailable in this environment.
