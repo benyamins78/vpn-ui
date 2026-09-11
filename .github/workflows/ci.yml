@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main, codex/unified-control-plane]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc sqlite3 shellcheck
+      - name: Go tests
+        env:
+          CGO_ENABLED: "1"
+        run: go test ./...
+      - name: Shell syntax and lint
+        run: |
+          bash -n deploy.sh install.sh build.sh vpn-ui.sh
+          shellcheck deploy.sh install.sh build.sh vpn-ui.sh
+
+  build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - goarch: amd64
+            cc: gcc
+          - goarch: arm64
+            cc: aarch64-linux-gnu-gcc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu docker.io
+      - name: Build pinned release artifact
+        env:
+          CC: ${{ matrix.cc }}
+        run: ./build.sh --arch "${{ matrix.goarch }}"
+      - name: Prepare checksums
+        run: |
+          cp "build/out/vpn-ui-${{ matrix.goarch }}" "vpn-ui-${{ matrix.goarch }}"
+          sha256sum "vpn-ui-${{ matrix.goarch }}" > "SHA256SUMS-${{ matrix.goarch }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vpn-ui-${{ matrix.goarch }}
+          path: |
+            vpn-ui-${{ matrix.goarch }}
+            SHA256SUMS-${{ matrix.goarch }}
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: vpn-ui-*
+          merge-multiple: true
+      - name: Combine release checksums
+        run: cat artifacts/SHA256SUMS-* > artifacts/SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/vpn-ui-amd64
+            artifacts/vpn-ui-arm64
+            artifacts/SHA256SUMS
+          generate_release_notes: true

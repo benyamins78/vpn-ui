@@ -2,7 +2,7 @@
 # MmD
 set -euo pipefail
 
-REPO="Sir-MmD/vpn-ui"
+REPO="${VPN_UI_REPO:-Sir-MmD/vpn-ui}"
 ASSET="vpn-ui-amd64"
 DEST_DIR="/opt/vpn-ui"
 DEST="$DEST_DIR/$ASSET"
@@ -91,6 +91,18 @@ if [[ $EUID -ne 0 ]]; then
     die "must run as root — use: sudo $0   (piped: curl -fsSL <url> | sudo bash)"
 fi
 
+# Headless-friendly network tuning. Fresh installs default to auto; upgrades
+# preserve the host's current choice unless explicitly requested. These flags
+# intentionally have no arbitrary sysctl value input.
+BBR_REQUEST="${VPN_UI_ENABLE_BBR:-auto}"
+for arg in "$@"; do
+    case "$arg" in
+        --no-bbr) BBR_REQUEST=false ;;
+        --enable-bbr) BBR_REQUEST=true ;;
+        *) die "unknown option '$arg' (supported: --no-bbr, --enable-bbr)" ;;
+    esac
+done
+
 # Preflight
 hr
 printf '%s[%sVPN-UI%s]%s deploy\n' "$B$TEAL" "$GREEN" "$TEAL" "$R"
@@ -99,8 +111,14 @@ hr
 command -v systemctl >/dev/null 2>&1 || die "systemctl not found — this host isn't running systemd."
 
 arch="$(uname -m)"
-[[ "$arch" == "x86_64" || "$arch" == "amd64" ]] || \
-    warn "host architecture is '$arch' — this installs the amd64 build, which may not run here."
+case "$arch" in
+    x86_64|amd64) ASSET="vpn-ui-amd64" ;;
+    aarch64|arm64) ASSET="vpn-ui-arm64" ;;
+    *) die "unsupported architecture '$arch' — supported: x86_64/amd64 and aarch64/arm64." ;;
+esac
+DEST="$DEST_DIR/$ASSET"
+DB="$DEST_DIR/vpn-ui.db"
+DL_URL="https://github.com/$REPO/releases/latest/download/$ASSET"
 
 # Fresh install vs in-place update: an already-installed binary means UPDATE. On
 # update we must NOT re-randomize credentials (that would lock the operator out of
@@ -110,6 +128,71 @@ if [[ -e "$DEST" ]]; then
     MODE="update"
     OLD_VER="$("$DEST" -v 2>/dev/null | tr -d '[:space:]')"
 fi
+
+configure_bbr() {
+    if [[ "$BBR_REQUEST" == "false" ]]; then
+        act "BBR: opt-out requested; leaving current TCP settings unchanged"
+        return 0
+    fi
+    if [[ "$MODE" == "update" && "$BBR_REQUEST" == "auto" ]]; then
+        act "BBR: upgrade detected; preserving current TCP settings"
+        return 0
+    fi
+    if ! command -v sysctl >/dev/null 2>&1; then
+        warn "BBR unavailable: sysctl not found; continuing installation."
+        return 0
+    fi
+    local available current qdisc conf state_dir state_file tmp
+    available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+    if [[ " $available " != *" bbr "* ]] && command -v modprobe >/dev/null 2>&1; then
+        modprobe tcp_bbr 2>/dev/null || true
+        available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+    fi
+    printf '  Network optimization:\n'
+    printf '    BBR kernel support: %s\n' "$([[ " $available " == *" bbr "* ]] && echo available || echo unavailable)"
+    if [[ " $available " != *" bbr "* ]]; then
+        printf '    Leaving current TCP congestion control unchanged.\n'
+        warn "BBR unavailable on this kernel; vpn-ui installation will continue."
+        return 0
+    fi
+    current="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true)"
+    qdisc="$(sysctl -n net.core.default_qdisc 2>/dev/null || true)"
+    printf '    Congestion control before: %s\n' "${current:-unknown}"
+    printf '    Default qdisc before: %s\n' "${qdisc:-unknown}"
+    conf="/etc/sysctl.d/99-vpn-ui-bbr.conf"
+    if [[ -e "$conf" ]] && ! grep -qF '# Managed by vpn-ui' "$conf"; then
+        warn "BBR: refusing to overwrite non-vpn-ui $conf; leaving existing tuning unchanged."
+        return 0
+    fi
+    state_dir="/var/lib/vpn-ui"; state_file="$state_dir/bbr-state.json"
+    install -d -m 0755 "$state_dir"
+    if [[ ! -e "$state_file" ]]; then
+        printf '{"congestionControl":"%s","defaultQdisc":"%s"}\n' "$current" "$qdisc" > "$state_file"
+        chmod 0600 "$state_file"
+    fi
+    tmp="$(mktemp /etc/sysctl.d/.99-vpn-ui-bbr.conf.XXXXXX)"
+    printf '# Managed by vpn-ui; safe to remove only through vpn-ui BBR controls.\nnet.core.default_qdisc=fq\nnet.ipv4.tcp_congestion_control=bbr\n' > "$tmp"
+    chmod 0644 "$tmp"; mv -f "$tmp" "$conf"
+    printf '    Enabling BBR...\n'
+    if ! sysctl -w net.core.default_qdisc=fq >/dev/null ||
+       ! sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null; then
+        warn "BBR settings could not be applied; vpn-ui installation will continue."
+        rm -f "$conf"
+        return 0
+    fi
+    current="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true)"
+    qdisc="$(sysctl -n net.core.default_qdisc 2>/dev/null || true)"
+    printf '    Congestion control now: %s\n' "$current"
+    printf '    Default qdisc now: %s\n' "$qdisc"
+    if [[ "$current" != bbr ]]; then
+        warn "BBR did not verify after applying; restoring the previous configuration."
+        rm -f "$conf"
+        return 0
+    fi
+    printf '    Persistent config: %s\n    Result: enabled\n' "$conf"
+}
+
+configure_bbr
 
 if   command -v curl >/dev/null 2>&1; then DL="curl"
 elif command -v wget >/dev/null 2>&1; then DL="wget"
@@ -309,6 +392,27 @@ trap - INT TERM
 
 # Sanity: non-empty and a real Linux ELF binary (not an HTML 404 page).
 [[ -s "$tmp" ]] || die "downloaded file is empty."
+
+# Releases produced by this fork publish SHA256SUMS beside the versioned
+# artifacts. Refuse to install an artifact without a matching checksum: a
+# successful HTTP transfer alone is not provenance.
+checksum_tmp="$(mktemp)"
+trap 'rm -f "$checksum_tmp"' EXIT
+fetch_checksum() {
+    if [[ "$DL" == "curl" ]]; then
+        curl -fsSL --retry 3 --max-time 30 "https://github.com/$REPO/releases/latest/download/SHA256SUMS" -o "$checksum_tmp"
+    else
+        wget --tries=3 --timeout=30 -q -O "$checksum_tmp" "https://github.com/$REPO/releases/latest/download/SHA256SUMS"
+    fi
+}
+fetch_checksum || die "release checksum manifest is unavailable for $REPO; refusing to install an unverified artifact."
+expected="$(awk -v name="$ASSET" '$2 == name || $2 == "*" name { print $1; exit }' "$checksum_tmp")"
+[[ "$expected" =~ ^[A-Fa-f0-9]{64}$ ]] || die "checksum manifest has no valid SHA256 entry for $ASSET."
+actual="$(sha256sum "$tmp" | awk '{print $1}')"
+[[ "$actual" == "$expected" ]] || die "SHA256 mismatch for $ASSET — refusing to install."
+ok "verified SHA256 for ${ASSET}"
+rm -f "$checksum_tmp"
+checksum_tmp=""
 if command -v file >/dev/null 2>&1; then
     file -b "$tmp" | grep -qi 'ELF' || die "downloaded file is not an ELF binary (got: $(file -b "$tmp"))."
 else

@@ -230,6 +230,18 @@ hours at one-minute resolution, 14 days at 15-minute resolution, and 90 days
 hourly; old rows are pruned during collection. The additive migration preserves
 existing account totals and uses the normal database backup/restore path.
 
+## BBR network optimization
+
+Fresh Linux installs attempt BBR automatically when the running kernel advertises
+it. The installer verifies availability, applies `fq` plus `bbr`, and persists
+only vpn-ui-owned settings in `/etc/sysctl.d/99-vpn-ui-bbr.conf`. Use
+`--no-bbr` or `VPN_UI_ENABLE_BBR=false` to opt out; use `--enable-bbr` to
+explicitly request it. Routine upgrades preserve existing host TCP tuning unless
+BBR is explicitly requested. Unsupported kernels leave their current settings
+unchanged and do not fail installation. The dashboard's TCP congestion control
+card shows status and, for super administrators, enables or reverts only the
+vpn-ui-owned configuration.
+
 ## Control-plane and DNS tunnel status
 
 All currently supported protocols feed the existing account, session, quota,

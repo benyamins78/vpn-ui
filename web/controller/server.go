@@ -82,6 +82,7 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.GET("/getNewmlkem768", a.getNewmlkem768)
 	g.GET("/getNewVlessEnc", a.getNewVlessEnc)
 	g.GET("/distroStatus", a.distroStatus)
+	g.GET("/bbr/status", a.bbrStatus)
 	g.GET("/geofileStatus", a.geofileStatus)
 	// The in-flight geofile download, so an overview that was reopened mid-transfer
 	// can re-attach instead of looking idle. Read-only, like geofileStatus beside it.
@@ -102,6 +103,10 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	// AND made the grant unreachable for a reseller, whose derived mask never carries
 	// a settings bit, so their AllowOverviewManage column could never do anything.
 	g.POST("/serverName", requireOverviewManage(), a.setServerName)
+	// Kernel-wide network tuning is restricted to super admins. The handlers only
+	// accept fixed enable/revert operations; no arbitrary sysctl input is exposed.
+	g.POST("/bbr/enable", requireSuperAdmin(), a.enableBBR)
+	g.POST("/bbr/disable", requireSuperAdmin(), a.disableBBR)
 
 	// Panel-wide effects rather than per-inbound, so they follow the Xray permission.
 	g.POST("/stopXrayService", requirePerm(model.PermXraySettings), a.stopXrayService)
@@ -133,6 +138,18 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.POST("/importDB", requireOverviewManage(), a.importDB)
 	g.POST("/importForeignDB", requireOverviewManage(), a.importForeignDB)
 	g.POST("/getNewEchCert", a.getNewEchCert)
+}
+
+func (a *ServerController) bbrStatus(c *gin.Context) { jsonObj(c, service.BBRStatusSnapshot(), nil) }
+
+func (a *ServerController) enableBBR(c *gin.Context) {
+	status, err := service.EnableBBR()
+	jsonObj(c, status, err)
+}
+
+func (a *ServerController) disableBBR(c *gin.Context) {
+	status, err := service.DisableBBR()
+	jsonObj(c, status, err)
 }
 
 // refreshStatus updates the cached server status and collects CPU history.

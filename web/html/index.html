@@ -300,6 +300,28 @@
       </div>
     </article>
 
+    <!-- ===== TCP congestion control ===== -->
+    <article class="bo-tile bo-t-bbr" aria-label='{{ i18n "pages.index.bbrTitle" }}'>
+      <div class="bo-tile-head">
+        <h3 class="bo-tile-title">{{ i18n "pages.index.bbrTitle" }}</h3>
+        <span class="bo-status-pill" :class="bbrStatus.enabled ? 'bo-status-pill--ok' : (bbrStatus.available ? 'bo-status-pill--warn' : 'bo-status-pill--error')">
+          [[ bbrStatus.available ? (bbrStatus.enabled ? '{{ i18n "pages.index.bbrEnabled" }}' : '{{ i18n "pages.index.bbrDisabled" }}') : '{{ i18n "pages.index.bbrUnavailable" }}' ]]
+        </span>
+      </div>
+      <div class="bo-kv-row"><span class="bo-kv-label">{{ i18n "pages.index.bbrAlgorithm" }}</span><span class="bo-kv-value num">[[ bbrStatus.currentCongestionControl || '-' ]]</span></div>
+      <div class="bo-kv-row"><span class="bo-kv-label">{{ i18n "pages.index.bbrQdisc" }}</span><span class="bo-kv-value num">[[ bbrStatus.currentQdisc || '-' ]]</span></div>
+      <div class="bo-kv-row"><span class="bo-kv-label">{{ i18n "pages.index.bbrKernel" }}</span><span class="bo-kv-value num">[[ bbrStatus.kernel || status.kernel || '-' ]]</span></div>
+      <div class="bo-kv-row"><span class="bo-kv-label">{{ i18n "pages.index.bbrPersistence" }}</span><span class="bo-kv-value">[[ bbrStatus.persistent ? '{{ i18n "pages.index.bbrConfigured" }}' : '{{ i18n "pages.index.bbrNotConfigured" }}' ]]</span></div>
+      <div class="bo-divider"></div>
+      <div class="bo-btn-row">
+        <button type="button" class="bo-icon-btn" @click="fetchBBRStatus" :disabled="bbrBusy">{{ i18n "refresh" }}</button>
+        {{ if .perms.manageOverview }}
+        <button type="button" class="bo-icon-btn" @click="setBBR(true)" :disabled="bbrBusy || !bbrStatus.available || bbrStatus.enabled">{{ i18n "pages.index.bbrEnable" }}</button>
+        <button type="button" class="bo-icon-btn" @click="setBBR(false)" :disabled="bbrBusy || !bbrStatus.managed">{{ i18n "pages.index.bbrDisable" }}</button>
+        {{ end }}
+      </div>
+    </article>
+
     <!-- ===== VPN services =====
          Core Settings only. The daemon states come from /panel/core/status,
          which that permission gates, and every chip navigates to the Core page,
@@ -1773,6 +1795,8 @@
         spinning: false
       },
       status: new Status(),
+      bbrStatus: { supported: false, available: false, enabled: false, currentCongestionControl: '', availableCongestionControl: '', currentQdisc: '', kernel: '', persistent: false, managed: false },
+      bbrBusy: false,
   cpuHistory: [], // small live widget history
   cpuHistoryLong: [], // aggregated points from backend
   cpuHistoryLabels: [],
@@ -2294,6 +2318,21 @@
           const msg = await HttpUtil.get('/panel/api/server/userStats');
           if (msg && msg.success && msg.obj) this.userStats = msg.obj;
         } catch (e) { /* best-effort */ }
+      },
+      async fetchBBRStatus() {
+        try {
+          const msg = await HttpUtil.get('/panel/api/server/bbr/status');
+          if (msg && msg.success && msg.obj) this.bbrStatus = msg.obj;
+        } catch (e) { /* best-effort status */ }
+      },
+      async setBBR(enable) {
+        if (this.bbrBusy) return;
+        this.bbrBusy = true;
+        try {
+          const msg = await HttpUtil.post('/panel/api/server/bbr/' + (enable ? 'enable' : 'disable'), {});
+          if (msg && msg.obj) this.bbrStatus = msg.obj;
+          if (msg && !msg.success) this.$message.error(msg.msg || '{{ i18n "somethingWentWrong" }}');
+        } finally { this.bbrBusy = false; }
       },
       // The modal's row/level/syslog controls and its refresh icon go through
       // here, so they re-run the loader that opened it instead of always
@@ -3506,6 +3545,7 @@
       await this.getCoreStatuses();
       this.checkDistroSupport();
       this.fetchUserStats();
+      this.fetchBBRStatus();
       this.fetchServerName();
       this.fetchPanelLocation();
       // Up front, not only in openGeofiles(), so the badges are already there when
