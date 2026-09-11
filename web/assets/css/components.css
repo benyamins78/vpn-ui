@@ -2778,3 +2778,22 @@ html[data-theme-animations='off'] .log-live-dot { animation:none; }
 .bo-il-exp--error { color:var(--error); }
 .bo-il-inf { font-size:var(--fs-md); line-height:1; color:var(--text-3); }
 .bo-il-none { font-size:var(--fs-base); color:var(--text-3); }
+.bo-client-summary {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(92px, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.bo-client-summary__item {
+  appearance: none; border: 1px solid var(--border-color, rgba(128,128,128,.22));
+  background: var(--card-bg, transparent); color: inherit; border-radius: 10px;
+  padding: 10px 12px; text-align: start; cursor: pointer;
+  transition: border-color .18s ease, background-color .18s ease;
+}
+.bo-client-summary__item:hover, .bo-client-summary__item.is-selected {
+  border-color: var(--primary-color); background: var(--primary-weak, rgba(24,144,255,.08));
+}
+.bo-client-summary__label { display:block; font-size: var(--fs-sm, 12px); opacity:.72; }
+.bo-client-summary__value { display:block; margin-top:4px; font-variant-numeric: tabular-nums; font-size: 21px; }
+@media (max-width: 900px) { .bo-client-summary { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 560px) { .bo-client-summary { grid-template-columns: repeat(2, 1fr); } }

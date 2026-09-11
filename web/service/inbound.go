@@ -3285,6 +3285,12 @@ func (s *InboundService) AddTraffic(inboundTraffics []*xray.Traffic, clientTraff
 	// while the same tick's per-inbound evidence is still available to close it with.
 	// See web/service/coreattribution.go.
 	attributeCoreRecords(tx, inboundTraffics, clientTraffics)
+	// Persist the collector's non-negative deltas in the same transaction as the
+	// authoritative account totals. This makes history restart-safe and prevents a
+	// partially billed tick from appearing in analytics.
+	if err = RecordTrafficDeltas(tx, clientTraffics, time.Now()); err != nil {
+		return err, false, nil, nil, nil
+	}
 	err = s.addClientTraffic(tx, clientTraffics)
 	if err != nil {
 		return err, false, nil, nil, nil

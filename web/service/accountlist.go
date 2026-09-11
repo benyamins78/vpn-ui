@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/mhsanaei/3x-ui/v2/database"
 	"github.com/mhsanaei/3x-ui/v2/database/model"
@@ -125,7 +126,23 @@ type AccountListResult struct {
 	// ticks its selected item from THIS rather than from what it asked for, so a key
 	// the server does not know falls back visibly instead of leaving the menu
 	// pointing at an ordering the list is not in.
-	Sort string `json:"sort"`
+	Sort    string               `json:"sort"`
+	Summary AccountStatusSummary `json:"summary"`
+}
+
+// AccountStatusSummary is computed once by the account read model. Ended is a
+// terminal/informational state (expired or exhausted); Disabled is the
+// administrative off switch on otherwise non-ended accounts. Active is the
+// exclusive healthy state. Depleting is informational and may overlap Active.
+// The 85% threshold mirrors the existing client warning semantics.
+type AccountStatusSummary struct {
+	Clients   int `json:"clients"`
+	Online    int `json:"online"`
+	Offline   int `json:"offline"`
+	Ended     int `json:"ended"`
+	Depleting int `json:"depleting"`
+	Disabled  int `json:"disabled"`
+	Active    int `json:"active"`
 }
 
 // The orderings the Clients table offers. Each one is a COMPLETE ordering, not a
@@ -266,10 +283,31 @@ func (s *AccountService) ListAccounts(user *model.User, page, size int, search, 
 	// of meaning: on a box where Xray never started it is empty, and every account
 	// then sorts as offline rather than the call failing.
 	online := map[string]bool{}
-	if sortKey == AccountSortOnline {
+	{
 		var inboundService InboundService
 		for _, email := range inboundService.GetOnlineClients() {
 			online[accountKey(email)] = true
+		}
+	}
+	summary := AccountStatusSummary{Clients: len(rows)}
+	now := time.Now().UnixMilli()
+	for i := range rows {
+		r := &rows[i]
+		ended := (r.ExpiryTime > 0 && r.ExpiryTime <= now) || (r.TotalGB > 0 && r.Up+r.Down >= r.TotalGB)
+		if online[accountKey(r.Email)] {
+			summary.Online++
+		} else {
+			summary.Offline++
+		}
+		if ended {
+			summary.Ended++
+		} else if !r.Enable {
+			summary.Disabled++
+		} else {
+			summary.Active++
+		}
+		if r.TotalGB > 0 && r.Up+r.Down >= r.TotalGB*85/100 && r.Up+r.Down < r.TotalGB {
+			summary.Depleting++
 		}
 	}
 	sortKey = sortAccountRows(rows, createdAt, online, sortKey)
@@ -285,7 +323,7 @@ func (s *AccountService) ListAccounts(user *model.User, page, size int, search, 
 	}
 	return &AccountListResult{
 		Rows: rows[start:end], Total: total, Page: page, Size: size,
-		Sort: sortKey,
+		Sort: sortKey, Summary: summary,
 	}, nil
 }
 

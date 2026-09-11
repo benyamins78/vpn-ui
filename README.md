@@ -213,6 +213,39 @@ git clone https://github.com/Sir-MmD/vpn-ui.git && cd vpn-ui
 ./build.sh
 ```
 
+## Account traffic history
+
+The account-centric Clients API returns one authoritative `summary` object for
+the visible accounts (`clients`, `online`, `offline`, `ended`, `depleting`,
+`disabled`, and `active`). Live state is sourced from the panel-wide session
+registry and is scoped before it reaches delegated administrators.
+
+Per-account bandwidth history is available at
+`GET /panel/api/clients/history?email=...&range=1h|24h|7d|30d`. It is built from
+the same non-negative collector deltas that update `client_traffics`, in the
+same SQLite transaction, so core restarts and counter resets cannot create
+negative usage or false spikes. Only byte totals are stored: browsing history,
+DNS queries, destinations, and payloads are never collected. Retention is 48
+hours at one-minute resolution, 14 days at 15-minute resolution, and 90 days
+hourly; old rows are pruned during collection. The additive migration preserves
+existing account totals and uses the normal database backup/restore path.
+
+## Control-plane and DNS tunnel status
+
+All currently supported protocols feed the existing account, session, quota,
+device-limit, speed-limit, and Xray routing architecture. A DNS tunnel is not
+advertised as panel-native yet: a shared CottenDNS/MasterDNS encryption key or a
+local SOCKS username/password cannot cryptographically identify an individual
+panel subscriber. Until an upstream-compatible per-account key-ring and bounded
+credential lookup are implemented and tested, the panel intentionally refuses
+to claim DNS per-user provisioning, revocation, or accounting.
+
+```mermaid
+flowchart LR
+  Client --> Transport --> Core --> AccountSession --> Enforcement --> XrayRouting --> Internet
+  DNSClient --> Resolver --> DelegatedDomain --> DNSCore --> AccountSession
+```
+
 ## E2E Testing
 
 ![E2E Test](https://raw.githubusercontent.com/Sir-MmD/vpn-ui/refs/heads/main/media/test_unit.png)

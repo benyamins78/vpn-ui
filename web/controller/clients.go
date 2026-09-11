@@ -1,8 +1,12 @@
 package controller
 
 import (
+	"errors"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/mhsanaei/3x-ui/v2/web/service"
 	"github.com/mhsanaei/3x-ui/v2/web/session"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +43,47 @@ func (a *ClientsController) initRouter(g *gin.RouterGroup) {
 	// The rows are then narrowed per caller inside ListAccounts.
 	g.GET("/list", a.list)
 	g.GET("/assignable", a.assignable)
+	g.GET("/history", a.history)
+}
+
+// history returns bandwidth analytics only after the same account visibility
+// check as the Clients list. It never exposes destinations, DNS queries, or
+// packet contents.
+func (a *ClientsController) history(c *gin.Context) {
+	email := c.Query("email")
+	user := session.GetLoginUser(c)
+	if email == "" || user == nil {
+		jsonObj(c, nil, errors.New("invalid client email"))
+		return
+	}
+	if !user.IsSuperAdmin {
+		allowed := false
+		var err error
+		if user.IsReseller {
+			var result *service.AccountListResult
+			result, err = accountService.ListAccounts(user, 1, 1, email, "newest")
+			allowed = err == nil && len(result.Rows) == 1 && strings.EqualFold(result.Rows[0].Email, email)
+		} else {
+			allowed, err = accessService.CanAccessClientEmail(email, user.Id)
+		}
+		if err != nil || !allowed {
+			jsonObj(c, nil, errors.New("client not accessible"))
+			return
+		}
+	}
+	rangeKey := c.DefaultQuery("range", "24h")
+	durations := map[string]time.Duration{"1h": time.Hour, "24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour}
+	duration, ok := durations[rangeKey]
+	if !ok {
+		jsonObj(c, nil, errors.New("invalid history range"))
+		return
+	}
+	points, err := TrafficHistory(email, time.Now().Add(-duration), time.Now())
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	jsonObj(c, map[string]any{"email": email, "range": rangeKey, "points": points}, nil)
 }
 
 // list returns one page of accounts the caller may see.

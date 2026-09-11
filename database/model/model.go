@@ -787,5 +787,22 @@ type AccountInbound struct {
 	CreatedAt int64 `json:"createdAt" gorm:"autoCreateTime:milli"`
 }
 
+// AccountTrafficSample is a bounded, account-level bandwidth time series.  It
+// deliberately stores only byte deltas (never domains, destinations, or DNS
+// data). Resolution is 60 seconds for recent data, 900 seconds for the medium
+// window, and 3600 seconds for the long window. The unique key makes repeated
+// collector ticks idempotent within a bucket.
+type AccountTrafficSample struct {
+	Id         int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	Email      string `json:"email" gorm:"uniqueIndex:uq_account_sample,priority:1;index:idx_account_sample,priority:1"`
+	BucketAt   int64  `json:"bucketAt" gorm:"uniqueIndex:uq_account_sample,priority:2;index:idx_account_sample,priority:2"`
+	Resolution int    `json:"resolution" gorm:"uniqueIndex:uq_account_sample,priority:3;index:idx_account_sample,priority:3"`
+	Up         int64  `json:"up"`
+	Down       int64  `json:"down"`
+	CreatedAt  int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
+}
+
+func (AccountTrafficSample) TableName() string { return "account_traffic_samples" }
+
 // TableName pins the table name. See Account.TableName.
 func (AccountInbound) TableName() string { return "account_inbounds" }
