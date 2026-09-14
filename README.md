@@ -78,13 +78,40 @@ the core rather than by a daemon, and they work as **inbounds and outbounds**:
 ## Installing the Panel
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/Sir-MmD/vpn-ui/refs/heads/main/deploy.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/benyamins78/vpn-ui/codex/unified-control-plane/install.sh | sudo bash
 ```
+
+This command performs both fresh installations and upgrades. BBR is enabled
+automatically when the running Linux kernel supports it. To leave the host's
+current TCP settings unchanged:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/benyamins78/vpn-ui/codex/unified-control-plane/install.sh | sudo bash -s -- --no-bbr
+```
+
+To explicitly enable BBR:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/benyamins78/vpn-ui/codex/unified-control-plane/install.sh | sudo bash -s -- --enable-bbr
+```
+
+`install.sh` delegates to `deploy.sh`. Releases are produced by GitHub Actions
+from `v*` tags; the installer downloads the amd64 or arm64 binary from the
+latest fork release and verifies its SHA256 checksum before installation.
 
 ## Uninstalling the Panel
 
+Preferred (architecture-independent management menu):
+
 ```bash
-sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall
+sudo vpn-ui
+```
+
+Or use the installed binary directly:
+
+```bash
+sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall  # amd64
+sudo /opt/vpn-ui/vpn-ui-arm64 --uninstall  # arm64
 ```
 
 > [!NOTE]
@@ -209,7 +236,7 @@ flowchart TB
 ## Building from Source
 
 ```bash
-git clone https://github.com/Sir-MmD/vpn-ui.git && cd vpn-ui
+git clone https://github.com/benyamins78/vpn-ui.git && cd vpn-ui
 ./build.sh
 ```
 

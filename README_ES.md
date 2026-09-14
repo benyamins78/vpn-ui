@@ -69,13 +69,22 @@ Este proyecto es una versión mejorada del panel **[3X-UI](https://github.com/MH
 ## Instalación del panel
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/Sir-MmD/vpn-ui/refs/heads/main/deploy.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/benyamins78/vpn-ui/codex/unified-control-plane/install.sh | sudo bash
 ```
 
 ## Desinstalación del panel
 
+Método recomendado (menú de gestión independiente de la arquitectura):
+
 ```bash
-sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall
+sudo vpn-ui
+```
+
+También puedes usar directamente el binario instalado:
+
+```bash
+sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall  # amd64
+sudo /opt/vpn-ui/vpn-ui-arm64 --uninstall  # arm64
 ```
 
 > [!NOTE]
@@ -200,7 +209,7 @@ flowchart TB
 ## Compilación desde el código fuente
 
 ```bash
-git clone https://github.com/Sir-MmD/vpn-ui.git && cd vpn-ui
+git clone https://github.com/benyamins78/vpn-ui.git && cd vpn-ui
 ./build.sh
 ```
 

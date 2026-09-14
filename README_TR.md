@@ -69,13 +69,22 @@ Bu proje, **[3X-UI](https://github.com/MHSanaei/3x-ui)** panelinin (2.9.3 sürü
 ## Panel Kurulumu
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/Sir-MmD/vpn-ui/refs/heads/main/deploy.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/benyamins78/vpn-ui/codex/unified-control-plane/install.sh | sudo bash
 ```
 
 ## Panel Kaldırma
 
+Önerilen yöntem (mimariden bağımsız yönetim menüsü):
+
 ```bash
-sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall
+sudo vpn-ui
+```
+
+İsterseniz kurulu ikiliyi doğrudan da kullanabilirsiniz:
+
+```bash
+sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall  # amd64
+sudo /opt/vpn-ui/vpn-ui-arm64 --uninstall  # arm64
 ```
 
 > [!NOTE]
@@ -200,7 +209,7 @@ flowchart TB
 ## Kaynaktan Derleme
 
 ```bash
-git clone https://github.com/Sir-MmD/vpn-ui.git && cd vpn-ui
+git clone https://github.com/benyamins78/vpn-ui.git && cd vpn-ui
 ./build.sh
 ```
 

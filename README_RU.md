@@ -69,13 +69,22 @@
 ## Установка панели
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/Sir-MmD/vpn-ui/refs/heads/main/deploy.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/benyamins78/vpn-ui/codex/unified-control-plane/install.sh | sudo bash
 ```
 
 ## Удаление панели
 
+Рекомендуемый способ (архитектурно-независимое меню управления):
+
 ```bash
-sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall
+sudo vpn-ui
+```
+
+Также можно использовать установленный бинарный файл напрямую:
+
+```bash
+sudo /opt/vpn-ui/vpn-ui-amd64 --uninstall  # amd64
+sudo /opt/vpn-ui/vpn-ui-arm64 --uninstall  # arm64
 ```
 
 > [!NOTE]
@@ -200,7 +209,7 @@ flowchart TB
 ## Компиляция из исходного кода
 
 ```bash
-git clone https://github.com/Sir-MmD/vpn-ui.git && cd vpn-ui
+git clone https://github.com/benyamins78/vpn-ui.git && cd vpn-ui
 ./build.sh
 ```
 

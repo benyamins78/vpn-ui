@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main, codex/unified-control-plane]
+    tags: ['v*']
   pull_request:
 
 permissions:
@@ -57,6 +58,8 @@ jobs:
       - name: Build pinned release artifact
         env:
           CC: ${{ matrix.cc }}
+          CGO_ENABLED: "1"
+          GOARCH: ${{ matrix.goarch }}
         run: ./build.sh --arch "${{ matrix.goarch }}"
       - name: Prepare checksums
         run: |
