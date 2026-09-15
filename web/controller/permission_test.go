@@ -106,7 +106,10 @@ func TestRequireSuperAdmin(t *testing.T) {
 // A page navigation redirects; an XHR gets a JSON status. Denying a page with a raw
 // 403 would leave the browser on a blank screen.
 func TestDenyShapeMatchesRequestKind(t *testing.T) {
-	limited := &model.User{Id: 2, Enable: true}
+	// Give the authenticated caller one reachable page so the denial has a
+	// legitimate landing page to redirect to; the route being tested still lacks
+	// the requested inbound permission.
+	limited := &model.User{Id: 2, Enable: true, Permissions: model.PermPanelSettings}
 	if got, _ := runGuarded(t, limited, requirePerm(model.PermAccessInbounds), false); got != http.StatusTemporaryRedirect {
 		t.Errorf("page navigation denial = %d; want 307 redirect", got)
 	}
