@@ -78,7 +78,7 @@ func (a *ClientsController) history(c *gin.Context) {
 		jsonObj(c, nil, errors.New("invalid history range"))
 		return
 	}
-	points, err := TrafficHistory(email, time.Now().Add(-duration), time.Now())
+	points, err := service.TrafficHistory(email, time.Now().Add(-duration), time.Now())
 	if err != nil {
 		jsonObj(c, nil, err)
 		return
