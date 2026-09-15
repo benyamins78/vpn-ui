@@ -45,6 +45,8 @@ func runGuarded(t *testing.T, user *model.User, guard gin.HandlerFunc, ajax bool
 	req := httptest.NewRequest(http.MethodGet, "/guarded", nil)
 	if ajax {
 		req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	} else {
+		req.Header.Set("Accept", "text/html,application/xhtml+xml")
 	}
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
